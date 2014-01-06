@@ -30,7 +30,8 @@ public class FileImporter {
 		URL url = FileImporter.class.getProtectionDomain()
 		        .getCodeSource().getLocation() ;
 		basePath = Paths.get(url.getPath()).getParent();
-		System.out.println(basePath);
+		while(!basePath.endsWith("PageRanking"))
+			basePath = basePath.getParent() ;
 	}
 	
 	private File directory ;
