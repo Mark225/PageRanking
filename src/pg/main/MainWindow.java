@@ -20,6 +20,7 @@ import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JSeparator;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
@@ -60,7 +61,11 @@ public class MainWindow extends JFrame implements ActionListener{
 	
 	private JPanel separator = new JPanel() ;
 	
-	private JTextArea resultsPan = new JTextArea() ;
+	//---resultsPan
+	private JPanel resultsPan = new JPanel() ;
+	private JTextArea resultsField = new JTextArea(30,70) ;
+	private JScrollPane resultsScroll = new JScrollPane(resultsField) ;
+	//---
 	
 	private boolean isSearching = false ;
 	private Thread runningThread = null ;
@@ -126,7 +131,8 @@ public class MainWindow extends JFrame implements ActionListener{
 		//---
 		
 		//---resultPan
-		resultsPan.setEditable(false) ;
+		resultsPan.add(resultsScroll) ;
+		resultsField.setEditable(false) ;
 		getContentPane().add(resultsPan) ;
 		//---
 		
@@ -141,10 +147,10 @@ public class MainWindow extends JFrame implements ActionListener{
 			
 			@Override
 			public void run() {
-				resultsPan.setText("") ;
+				resultsField.setText("") ;
 				for(String result : results)
 				{
-					resultsPan.append(result  + "\n------------------------------------------------------------------\n") ;
+					resultsField.append(result  + "\n------------------------------------------------------------------\n") ;
 				}
 				
 			}
@@ -230,7 +236,8 @@ public class MainWindow extends JFrame implements ActionListener{
 					Vector<String> string_res = new Vector<String>() ;
 					for(Map.Entry<Node, Double> res : res_list)
 					{
-						string_res.add(res.getKey().getName() + " : " + res.getValue()) ;
+						string_res.add(res.getKey().getName() + "\n" + 
+								res.getKey().description+ "\nScore : " + res.getValue()) ;
 					}
 					
 					displayResults(string_res) ;

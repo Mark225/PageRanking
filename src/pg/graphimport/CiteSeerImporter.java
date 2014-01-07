@@ -19,7 +19,6 @@ import pg.algo.Node;
 
 
 /**
- * 
  * @author heinrich
  * Rq : Partie citation : articles cités dans le document
  * cited by : article citant ce document
@@ -44,6 +43,7 @@ public class CiteSeerImporter {
 		{
 			urls.add("http://citeseerx.ist.psu.edu/search?q=" + keyword + "&start=" + 10*i) ;
 		}
+		int i = 1 ;
 		
 		for(String address : urls)
 		{		
@@ -55,6 +55,8 @@ public class CiteSeerImporter {
 				if(! g.containsVertex(n))
 				{
 					g.addVertex(n) ;
+					n.description += "(" + i +")" ;
+					i += 1 ;
 					System.out.println("Initial vertice : " + n.getName()) ;
 				}
 			}
@@ -66,7 +68,7 @@ public class CiteSeerImporter {
 		// nodes in the loop
 		for(Node n : new HashSet<Node>(g.vertexSet()))
 		{
-			addNodes(n.getName(), g) ;
+			addNodes(n, g) ;
 		}
 		
 		addEdges(g) ;
@@ -107,19 +109,35 @@ public class CiteSeerImporter {
 	}
 	
 
-	private void addNodes(String name, DirectedGraph<Node, Edge> g) throws IOException {
-		
+	private void addNodes(Node n, DirectedGraph<Node, Edge> g) throws IOException {
+
+		String name = n.getName() ;
 		//Get the documents cited by this article
-		Document doc = Jsoup.connect("http://citeseerx.ist.psu.edu/viewdoc/summary?doi=" + name).get() ;
+		Document doc = null ;
+		try {
+			doc = Jsoup.connect("http://citeseerx.ist.psu.edu/viewdoc/summary?doi=" + name).get() ;
+		} catch(IOException e) {
+			System.out.println("Caught IO exception, retry");
+			addNodes(n,g) ;
+			return ;
+		}
+		n.description += getDescription(doc) ;
 		Element citations = doc.body().getElementById("citations") ;
 		for(Element link : citations.select("a[href]"))
 		{
 			
-			Document doc_article = Jsoup.connect(link.attr("abs:href")).get() ;
+			Document doc_article = null ;
+			try {
+				doc_article = Jsoup.connect(link.attr("abs:href")).get() ;
+			} catch (IOException e) {
+				System.out.println("caught IOException, some nodes may be missing") ;
+				continue ;
+			}
 			String id = createDocId(doc_article.baseUri()) ;
-			if(id == null)
+			if(id == null || doc_article.title().contains("Document Removed"))
 			{
-				//Document not in the database (not a doi address)
+				//Document not in the database (not a doi address), or 
+				//removed from database
 				// This document is ignored.
 			}
 			else 
@@ -130,6 +148,7 @@ public class CiteSeerImporter {
 				{
 					//Add the vertex only if it is not already in the graph.
 					g.addVertex(n2) ;
+					n2.description += getDescription(doc_article) ;
 					System.out.println("Added Vertice : " + n2.getName()) ;
 				}
 			}
@@ -141,7 +160,12 @@ public class CiteSeerImporter {
 		int k = 0 ;
 		while(i ==10)
 		{
-			doc2 = Jsoup.connect("http://citeseerx.ist.psu.edu/showciting?doi=" + name + "&start=" + (10*k)).get() ;
+			try {
+				doc2 = Jsoup.connect("http://citeseerx.ist.psu.edu/showciting?doi=" + name + "&start=" + (10*k)).get() ;
+			} catch (IOException e) {
+				System.out.println("caught IOException, some nodes may be missing") ;
+				continue ;
+			}
 			k += 1 ;
 			Element cite_list = doc2.body().getElementById("result_list") ;
 			Elements links = cite_list.getElementsByClass("doc_details") ;
@@ -160,7 +184,7 @@ public class CiteSeerImporter {
 		}
 		
 	}
-	
+
 	private void addEdges(DirectedGraph<Node, Edge> g) throws IOException{
 		for(Node n1 : g.vertexSet())
 		{
@@ -168,7 +192,15 @@ public class CiteSeerImporter {
 			int k = 0 ;
 			while(i == 10)
 			{
-				Document node_doc = Jsoup.connect("http://citeseerx.ist.psu.edu/showciting?doi=" + n1.getName() + "&start=" + (10*k)).get() ;
+				Document node_doc = null ;
+				try {
+					node_doc = Jsoup.connect("http://citeseerx.ist.psu.edu/showciting?doi=" + n1.getName() + "&start=" + (10*k)).get() ;
+				} catch(IOException e) {
+					System.out.println("caught IOException, some links may be missing");
+					continue ;
+				}
+				if(n1.description.equals(""))
+					n1.description += getDescription(node_doc) ;
 				Elements links = node_doc.body().getElementById("result_list").getElementsByClass("doc_details") ;
 				i = links.size() ;
 				k += 1 ;
@@ -212,6 +244,31 @@ public class CiteSeerImporter {
 		}
 		
 		return null ;
+	}
+	
+	/**
+	 * Parses the document to extract a description of a given node.
+	 * @param doc (HTML doc, summary type)
+	 * @return a string giving informations on a particular article
+	 */
+	private String getDescription(Document doc) {
+		
+		Element titleEl = doc.select("meta[name=citation_title]").first() ;
+		String title = "??" ;
+		if(titleEl != null)
+			title = titleEl.attr("content") ;
+		
+		Element authorsEl = doc.select("meta[name=citation_authors]").first() ;
+		String authors = "??" ;
+		if(authorsEl != null)
+			authors = authorsEl.attr("content") ;
+		String url = doc.location() ;
+		
+		Element yearEl = doc.select("meta[name=citation_year]").first() ;
+		String year = "??" ;
+		if(yearEl != null)
+			year = yearEl.attr("content") ;
+		return "Title : " + title + "\nAuthors : " + authors + "\nYear : " + year + "\nURL : " + url  ;
 	}
 
 }
