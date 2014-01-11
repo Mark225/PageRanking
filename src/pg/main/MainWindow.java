@@ -28,17 +28,25 @@ import javax.swing.SwingUtilities;
 
 import org.jgrapht.DirectedGraph;
 
+import pg.algo.Algorithm;
 import pg.algo.Edge;
 import pg.algo.Node;
-import pg.algo.Salsa;
 import pg.graphimport.GraphImport;
 import pg.graphimport.GraphImport.Mode;
 
 public class MainWindow extends JFrame implements ActionListener{
 	private static final long serialVersionUID = 1L;
 	
-	private JLabel modeLabel = new JLabel("Mode") ;
-	private JComboBox<GraphImport.Mode> modeBox = new JComboBox<GraphImport.Mode>(GraphImport.Mode.class.getEnumConstants());
+	//---progressBar
+	private Progress progress = new Progress() ;
+	//---
+	
+	GraphImport graphImport = new GraphImport(progress) ;
+	
+	
+	private JLabel modeLabel = new JLabel("Import Mode") ;
+	private JComboBox<GraphImport.Mode> modeBox = 
+			new JComboBox<GraphImport.Mode>(GraphImport.Mode.class.getEnumConstants());
 	private JPanel modePan = new JPanel() ;
 	
 	//---citeseer import
@@ -49,9 +57,15 @@ public class MainWindow extends JFrame implements ActionListener{
 	
 	//---file import
 	private JPanel fileSelectPan = new JPanel() ;
-	private JComboBox<String> fileBox = new JComboBox<String>(GraphImport.availableFiles()) ;
+	private JComboBox<String> fileBox = new JComboBox<String>(graphImport.availableFiles()) ;
 	private JLabel fileSelectLabel = new JLabel("Select File :") ;
 	//---
+	
+	//---Algo Pan
+	private JLabel algoLabel = new JLabel("Algorithm") ;
+	private JComboBox<Algorithm.Type> algoBox = 
+			new JComboBox<Algorithm.Type>(Algorithm.Type.class.getEnumConstants());
+	private JPanel algoPan = new JPanel() ;
 	
 	//---buttonsPan
 	private JPanel buttonsPan = new JPanel() ;
@@ -63,7 +77,7 @@ public class MainWindow extends JFrame implements ActionListener{
 	
 	//---resultsPan
 	private JPanel resultsPan = new JPanel() ;
-	private JTextArea resultsField = new JTextArea(30,70) ;
+	private JTextArea resultsField = new JTextArea(20,70) ;
 	private JScrollPane resultsScroll = new JScrollPane(resultsField) ;
 	//---
 	
@@ -73,7 +87,7 @@ public class MainWindow extends JFrame implements ActionListener{
 	public MainWindow(){
 		super("Page Ranking algorithm") ;
 		setDefaultCloseOperation(EXIT_ON_CLOSE);
-		setSize(800, 600) ;
+		setSize(800, 700) ;
 		getContentPane().setLayout(new BoxLayout(getContentPane(), BoxLayout.Y_AXIS));
 		
 		//--modePan
@@ -99,6 +113,18 @@ public class MainWindow extends JFrame implements ActionListener{
 		searchPan.add(Box.createHorizontalGlue()) ;
 		getContentPane().add(searchPan) ;
 		//---
+		
+		//--algoPan
+		algoBox.addActionListener(this) ;
+		algoBox.setMaximumSize(new Dimension(1000,20)) ;
+		algoPan.setLayout(new BoxLayout(algoPan, BoxLayout.X_AXIS)) ;
+		algoPan.setMaximumSize(new Dimension(1000, 40)) ;
+		algoPan.setPreferredSize(new Dimension(800, 30)) ;
+		algoPan.add(algoLabel) ;
+		algoPan.add(Box.createRigidArea(new Dimension(10, 0))) ;
+		algoPan.add(algoBox) ;
+		algoPan.add(Box.createHorizontalGlue()) ;
+		getContentPane().add(algoPan) ;
 		
 		//---buttonPan
 		buttonsPan.setLayout(new BoxLayout(buttonsPan, BoxLayout.X_AXIS)) ;
@@ -128,13 +154,15 @@ public class MainWindow extends JFrame implements ActionListener{
 		separator.add(sep) ;
 		separator.add(Box.createVerticalStrut(5)) ;
 		getContentPane().add(separator) ;
-		//---
+		//---		
 		
 		//---resultPan
 		resultsPan.add(resultsScroll) ;
 		resultsField.setEditable(false) ;
 		getContentPane().add(resultsPan) ;
 		//---
+		
+		getContentPane().add(progress.progressPanel()) ;
 		
 		getContentPane().add(Box.createVerticalGlue()) ;
 		
@@ -150,7 +178,8 @@ public class MainWindow extends JFrame implements ActionListener{
 				resultsField.setText("") ;
 				for(String result : results)
 				{
-					resultsField.append(result  + "\n------------------------------------------------------------------\n") ;
+					resultsField.append(result  + 
+			"\n------------------------------------------------------------------\n") ;
 				}
 				
 			}
@@ -170,26 +199,32 @@ public class MainWindow extends JFrame implements ActionListener{
 			switch (mode) {
 			case CITESEERX:
 				getContentPane().add(searchPan) ;
-				getContentPane().add(buttonsPan) ;
-				getContentPane().add(separator) ;
-				getContentPane().add(resultsPan) ;
 				break;
 				
 			case FROM_FILE:
 				getContentPane().add(fileSelectPan) ;
-				getContentPane().add(buttonsPan) ;
-				getContentPane().add(separator) ;
-				getContentPane().add(resultsPan) ;
 				break ;
 			}
+			getContentPane().add(algoPan) ;
+			getContentPane().add(buttonsPan) ;
+			getContentPane().add(separator) ;
+			getContentPane().add(resultsPan) ;
+			getContentPane().add(progress.progressPanel()) ;
+			
 			getContentPane().revalidate() ;
 			getContentPane().repaint() ;
 		}
 		if(event.getSource() == searchButton && !isSearching)
 		{
+			Algorithm.Type type = algoBox.getItemAt(algoBox.getSelectedIndex()) ;
 			switch (modeBox.getItemAt(modeBox.getSelectedIndex())) {
 			case CITESEERX:
 				String search = searchField.getText() ;
+				if(search.equals(""))
+				{
+					progress.info("Please enter research keywords") ;
+					return ; 
+				}
 				//Replace ' ' by '+'
 				StringBuilder builder = new StringBuilder(search) ;
 				int i = builder.lastIndexOf(" ") ;
@@ -198,11 +233,11 @@ public class MainWindow extends JFrame implements ActionListener{
 					builder.setCharAt(i, '+') ;
 					i = builder.lastIndexOf(" ") ;
 				}
-				run(Mode.CITESEERX, builder.toString()) ;
+				run(Mode.CITESEERX, type, builder.toString()) ;
 				break;
 
 			case FROM_FILE:
-				run(Mode.FROM_FILE, fileBox.getItemAt(fileBox.getSelectedIndex())) ;
+				run(Mode.FROM_FILE, type, fileBox.getItemAt(fileBox.getSelectedIndex())) ;
 				break;
 			}
 		}
@@ -211,6 +246,7 @@ public class MainWindow extends JFrame implements ActionListener{
 			System.out.println("Interrupting") ;
 			runningThread.stop() ;
 			isSearching = false ;
+			progress.info("Interrupting current task") ;
 		}
 		
 	}
@@ -221,15 +257,17 @@ public class MainWindow extends JFrame implements ActionListener{
 	 * @param mode
 	 * @param search
 	 */
-	public void run(final GraphImport.Mode mode, final String search){
+	public void run(final GraphImport.Mode mode, final Algorithm.Type type,  final String search){
 		isSearching = true ;
+		progress.info("Starting search : Import mode = " + mode + ", Algo = " + type + ", search = " + search) ;
+		progress.setProgress(0) ;
 		runningThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
 				try {
 					DirectedGraph<Node, Edge> g = 
-							GraphImport.importFrom(mode,search) ;
-					Map<Node, Double> result = Salsa.apply(g) ;
+							graphImport.importFrom(mode,search) ;
+					Map<Node, Double> result = Algorithm.apply(type,g) ;
 					List<Map.Entry<Node,Double>> res_list = new LinkedList<>(result.entrySet()) ;
 					Collections.sort(res_list, new ResultComparator()) ;
 					
@@ -241,13 +279,11 @@ public class MainWindow extends JFrame implements ActionListener{
 					}
 					
 					displayResults(string_res) ;
-					
+					progress.info("FINISHED.....") ;
 					isSearching = false ;
 				} catch (IOException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				} catch (ClassNotFoundException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 			}

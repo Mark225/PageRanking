@@ -16,6 +16,7 @@ import org.jgrapht.DirectedGraph;
 
 import pg.algo.Edge;
 import pg.algo.Node;
+import pg.main.Progress;
 
 /**
  * Class providing a method to import and export graphs from a file.
@@ -35,12 +36,16 @@ public class FileImporter {
 	}
 	
 	private File directory ;
+	@SuppressWarnings("unused")
+	private Progress progress;
 	
-	public FileImporter(){
+	public FileImporter(Progress progress){
 		directory = basePath.resolve("data" + File.separator + "graph").toFile() ;
+		this.progress = progress ;
 	}
 	
-	public FileImporter(Path p){
+	public FileImporter(Path p, Progress progress){
+		this.progress = progress ;
 		if(p.isAbsolute())
 		{
 			directory = p.toFile() ;

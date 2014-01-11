@@ -7,6 +7,7 @@ import org.jgrapht.DirectedGraph;
 
 import pg.algo.Edge;
 import pg.algo.Node;
+import pg.main.Progress;
 
 /**
  * Class to import graph from data in the Internet.
@@ -31,11 +32,19 @@ public class GraphImport {
 	 * @throws IOException 
 	 */
 	
-	private static CiteSeerImporter citeseerImport = new CiteSeerImporter();
-	private static FileImporter fileImport = new FileImporter() ;
+	private CiteSeerImporter citeseerImport ;
+	private FileImporter fileImport  ;
+	private Progress progress ;
 	
-	public static DirectedGraph<Node, Edge> importFrom(Mode mode, String search) throws IOException, ClassNotFoundException{
+	public GraphImport(Progress progress){
+		this.progress = progress ;
+		citeseerImport = new CiteSeerImporter(progress) ;
+		fileImport = new FileImporter(progress)  ;
+	}
+	
+	public DirectedGraph<Node, Edge> importFrom(Mode mode, String search) throws IOException, ClassNotFoundException{
 		
+		progress.info("Importing graph") ;
 		DirectedGraph<Node, Edge> g = null ; 
 		
 		switch(mode){
@@ -55,11 +64,11 @@ public class GraphImport {
 	 * This is the list of correct search fields for the FROM_FILE import mode
 	 * @return
 	 */
-	public static Vector<String> availableFiles() {
+	public Vector<String> availableFiles() {
 		return fileImport.availableFiles();
 	}
 
-	public static void exportGraph(DirectedGraph<Node, Edge> g, String name) throws IOException{
+	public void exportGraph(DirectedGraph<Node, Edge> g, String name) throws IOException{
 		fileImport.exportGraph(g, name);
 	}
 

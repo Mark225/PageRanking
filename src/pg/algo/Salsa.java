@@ -13,7 +13,11 @@ import org.jgrapht.graph.WeightedPseudograph;
 
 
 /**
- * Class to apply the Salsa algorithm on the given graph.
+ * Class to apply the SALSA algorithm on the given graph.
+ * SALSA (Stochastic Approach for Link Structure Analysis) is a an algorithm used to 
+ * classify result when performing search on linked structures.
+ * Given a graph, it returns a score for each of its node, depending only of the structure
+ * of the graph.
  * @author heinrich
  */
 public class Salsa {

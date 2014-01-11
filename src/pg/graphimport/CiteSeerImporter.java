@@ -14,6 +14,7 @@ import org.jsoup.select.Elements;
 
 import pg.algo.Edge;
 import pg.algo.Node;
+import pg.main.Progress;
 
 
 
@@ -25,12 +26,16 @@ import pg.algo.Node;
  */
 public class CiteSeerImporter {
 	
+	private static final int TIMEOUT = 5000;
+
 	/**
 	 * Maximum number of results to use from the research on CiteSteer.
 	 */
 	static int BASIC_NUM = 10 ;
+	private Progress progress;
 	
-	public CiteSeerImporter(){
+	public CiteSeerImporter(Progress progress){
+		this.progress = progress ;
 	}
 	
 	public DirectedGraph<Node, Edge> importGraph(String keyword) throws IOException{
@@ -47,7 +52,6 @@ public class CiteSeerImporter {
 		
 		for(String address : urls)
 		{		
-			
 			List<String> l = parseSearchResults(address) ;
 			for(String name : l)
 			{
@@ -62,19 +66,25 @@ public class CiteSeerImporter {
 			}
 		}
 		
+		progress.info("Number of initial vertices : " + g.vertexSet().size()) ;
+		
 		//Search each URL from now, and add all the links and the Nodes pointed by these 
 		// links if necessary.
 		//copy because the loop will add nodes, and we don't want to consider theses 
 		// nodes in the loop
+		int k = 0 ;
 		for(Node n : new HashSet<Node>(g.vertexSet()))
 		{
+			progress.setProgress(k, BASIC_NUM) ;
 			addNodes(n, g) ;
+			k++ ;
 		}
 		
+		progress.info("Number of nodes : " + g.vertexSet().size()) ;
 		addEdges(g) ;
 		System.out.println("Import finished") ;
 		
-		GraphImport.exportGraph(g, "auto-save citeseerimport search=" + keyword) ;
+		new FileImporter(progress).exportGraph(g, "auto-save citeseerimport search=" + keyword +" [bset:" + BASIC_NUM + "]") ;
 		
 		return g;
 	}
@@ -86,28 +96,37 @@ public class CiteSeerImporter {
 	 * @return a list of ids.
 	 * @throws IOException
 	 */
-	private List<String> parseSearchResults(String address) throws IOException {
-		List<String> l = new LinkedList<>() ;
-
-		Document doc = Jsoup.connect(address).get() ;
-		Element body = doc.body() ;
-		
-		Element res_list = body.getElementById("result_list") ;
-		Elements titles = res_list.getElementsByClass("doc_details") ;
-		for(Element article : titles)
+	@SuppressWarnings("deprecation")
+	private List<String> parseSearchResults(String address) {
+		try 
 		{
-			String id = createDocId(article.attr("abs:href")) ;
-			if(id != null)
+			List<String> l = new LinkedList<>() ;
+
+			Document doc = Jsoup.connect(address).timeout(TIMEOUT).get() ;
+			Element body = doc.body() ;
+
+			Element res_list = body.getElementById("result_list") ;
+			Elements titles = res_list.getElementsByClass("doc_details") ;
+			for(Element article : titles)
 			{
-				l.add(id) ;
+				String id = createDocId(article.attr("abs:href")) ;
+				if(id != null)
+				{
+					l.add(id) ;
+				}
+				else 
+					System.out.println("Address ignored :" + article.attr("abs:href")) ;
+
 			}
-			else 
-				System.out.println("Address ignored :" + article.attr("abs:href")) ;
-			
+			return l ;
 		}
-		return l ;
+		catch(IOException e) {
+			progress.error("Server too long to respond") ;
+			Thread.currentThread().stop() ;
+			return new LinkedList<>() ;
+		}
 	}
-	
+
 
 	private void addNodes(Node n, DirectedGraph<Node, Edge> g) throws IOException {
 
@@ -115,7 +134,7 @@ public class CiteSeerImporter {
 		//Get the documents cited by this article
 		Document doc = null ;
 		try {
-			doc = Jsoup.connect("http://citeseerx.ist.psu.edu/viewdoc/summary?doi=" + name).get() ;
+			doc = Jsoup.connect("http://citeseerx.ist.psu.edu/viewdoc/summary?doi=" + name).timeout(TIMEOUT).get() ;
 		} catch(IOException e) {
 			System.out.println("Caught IO exception, retry");
 			addNodes(n,g) ;
@@ -128,9 +147,10 @@ public class CiteSeerImporter {
 			
 			Document doc_article = null ;
 			try {
-				doc_article = Jsoup.connect(link.attr("abs:href")).get() ;
+				doc_article = Jsoup.connect(link.attr("abs:href")).timeout(TIMEOUT).get() ;
 			} catch (IOException e) {
 				System.out.println("caught IOException, some nodes may be missing") ;
+				progress.warning("Server too long to respond, some nodes may be missing") ;
 				continue ;
 			}
 			String id = createDocId(doc_article.baseUri()) ;
@@ -161,7 +181,7 @@ public class CiteSeerImporter {
 		while(i ==10)
 		{
 			try {
-				doc2 = Jsoup.connect("http://citeseerx.ist.psu.edu/showciting?doi=" + name + "&start=" + (10*k)).get() ;
+				doc2 = Jsoup.connect("http://citeseerx.ist.psu.edu/showciting?doi=" + name + "&start=" + (10*k)).timeout(TIMEOUT).get() ;
 			} catch (IOException e) {
 				System.out.println("caught IOException, some nodes may be missing") ;
 				continue ;
@@ -182,21 +202,28 @@ public class CiteSeerImporter {
 				
 			}
 		}
-		
+		System.out.println("Node finished");
 	}
 
 	private void addEdges(DirectedGraph<Node, Edge> g) throws IOException{
+		
+		progress.info("Adding edges to the graph") ;
+		progress.setProgress(0) ;
+		int prog = 0 ;
 		for(Node n1 : g.vertexSet())
 		{
+			progress.setProgress(prog, g.vertexSet().size()) ;
+			prog ++ ;
 			int i = 10 ;
 			int k = 0 ;
 			while(i == 10)
 			{
 				Document node_doc = null ;
 				try {
-					node_doc = Jsoup.connect("http://citeseerx.ist.psu.edu/showciting?doi=" + n1.getName() + "&start=" + (10*k)).get() ;
+					node_doc = Jsoup.connect("http://citeseerx.ist.psu.edu/showciting?doi=" + n1.getName() + "&start=" + (10*k)).timeout(TIMEOUT).get() ;
 				} catch(IOException e) {
 					System.out.println("caught IOException, some links may be missing");
+					progress.warning("Server too long to respond, some links may be missing") ;
 					continue ;
 				}
 				if(n1.description.equals(""))
