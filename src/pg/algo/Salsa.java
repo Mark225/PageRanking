@@ -1,15 +1,17 @@
 package pg.algo;
 
+import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
 import org.jgrapht.DirectedGraph;
-import org.jgrapht.alg.ConnectivityInspector;
-import org.jgrapht.graph.DefaultWeightedEdge;
+import org.jgrapht.alg.util.UnionFind;
 import org.jgrapht.graph.EdgeReversedGraph;
-import org.jgrapht.graph.WeightedPseudograph;
+
+import pg.main.Progress;
 
 
 /**
@@ -22,13 +24,15 @@ import org.jgrapht.graph.WeightedPseudograph;
  */
 public class Salsa {
 	
+	public static Progress progress = new Progress() ;
+	
 	/**
 	 * Applies the SALSA algorithm on the graph. Returns a value for each of
 	 * the nodes of the graph corresponding to its ranking.
 	 * @param g : the graph to apply the algorithm on.
 	 * @return
 	 */
-	public static <V,E> Map<V, Double> apply(DirectedGraph<V,E> g){
+	public static <V extends Node ,E> Map<V, Double> apply(DirectedGraph<V,E> g){
 		Map<V,Double> resAuth = applyAuth(g);
 		Map<V,Double> resHub = applyHub(g);
 		Map<V,Double> result = new HashMap<>() ;
@@ -40,6 +44,8 @@ public class Salsa {
 			if(resHub.get(n) != null)
 				vertex_value = Math.max(vertex_value, resHub.get(n)) ;
 			result.put(n, vertex_value) ;
+			n.description += "\nAuthorité : " + resAuth.get(n) ; 
+			n.description += "\nHub : " + resHub.get(n) ;
 		}
 		return result ;
 	}
@@ -73,60 +79,57 @@ public class Salsa {
 			}
 		}
 		
-		//Creates a new graph corresponding to the Markov chain
-		WeightedPseudograph<V, DefaultWeightedEdge> tempGraph ; 
-		tempGraph = new WeightedPseudograph<V, DefaultWeightedEdge>(DefaultWeightedEdge.class) ;
+		UnionFind<V> connectedComp = new UnionFind<>(new HashSet<V>()) ;
 		
-		// -> put in the graph all nodes with d_in > 0 (authorities)
+		for(Map.Entry<V, Double> entry : degIn.entrySet())
+		{
+			if(entry.getValue() != 0.)
+				connectedComp.addElement(entry.getKey()) ;
+		}
+		
+		for(V n : g.vertexSet())
+		{
+			Iterator<E> it = g.outgoingEdgesOf(n).iterator() ;
+			if(it.hasNext())
+			{
+				E e1 = it.next() ;
+				while(it.hasNext())
+				{
+					E e2 = it.next();
+					connectedComp.union(g.getEdgeTarget(e1), g.getEdgeTarget(e2)) ;
+				}
+			}
+		}
+		
+		Map<V,Set<V>> mapComponents = new HashMap<>() ;
 		for(V n : g.vertexSet())
 		{
 			if(degIn.get(n) != 0.)
-				tempGraph.addVertex(n) ;
-		}
-		
-		// -> add all the required edges (and compute their weight)
-		for(V auth1 : tempGraph.vertexSet())
-		{
-			for(E edge1 : g.incomingEdgesOf(auth1))
 			{
-				V hub1 = g.getEdgeSource(edge1) ;
-				for(E edge2 : g.outgoingEdgesOf(hub1))
+				V nref = connectedComp.find(n) ;
+				if(mapComponents.containsKey(nref))
+					mapComponents.get(nref).add(n) ;
+				else 
 				{
-					V auth2 = g.getEdgeTarget(edge2) ;
-					if(!tempGraph.containsEdge(auth1, auth2))
-					{
-						DefaultWeightedEdge newEdge = tempGraph.addEdge(auth1, auth2) ;
-						tempGraph.setEdgeWeight(newEdge, 0) ;
-					}
-					/* No need to compute weights...
-					DefaultWeightedEdge e = tempGraph.getEdge(auth1, auth2) ;
-					double newWeight = tempGraph.getEdgeWeight(e) ; 
-					newWeight += g.getEdgeWeight(edge1) * g.getEdgeWeight(edge2) 
-							/ (degIn.get(auth1) * degOut.get(hub1)) ;
-					tempGraph.setEdgeWeight(e, newWeight) ;
-					*/
+					Set<V> tempset = new HashSet<>() ;
+					tempset.add(n) ;
+					mapComponents.put(nref, tempset) ;
 				}
 			}
-		}		
+		}
+		
+		Collection<Set<V>> components = mapComponents.values() ; 
+		
+		progress.info("Number of components : " + components.size()) ;
 		
 		//Compute the value for each node (independently of ponderation)
 		Map<V, Double> authRes = new HashMap<>(degIn) ;
-		/*double total = 0f ;
-		for(double val : authRes.values())
-		{
-			total += val ;
-		}
-		for(V n : authRes.keySet())
-		{
-			authRes.put(n, authRes.get(n) / total) ;
-		}*/
-		
-		//Compute the connected components
-		ConnectivityInspector<V, DefaultWeightedEdge> connectivity = new ConnectivityInspector<V, DefaultWeightedEdge>(tempGraph) ;
-		List<Set<V>> components = connectivity.connectedSets() ;
 		
 		//Ponderate these values by the size of the connected component.
-		int number_nodes = tempGraph.vertexSet().size() ;
+		int number_nodes = 0 ;
+		for(Set<V> comp : components)
+			number_nodes += comp.size() ;
+			
 		for(Set<V> comp : components)
 		{
 			double total_comp = 0.0 ;

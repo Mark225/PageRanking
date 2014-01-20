@@ -18,7 +18,7 @@ public class Algorithm {
 		HITS
 	}
 	
-	public static <V,E> Map<V,Double> apply(Type algo, DirectedGraph<V, E> g){
+	public static <V extends Node,E> Map<V,Double> apply(Type algo, DirectedGraph<V, E> g){
 		
 		Map<V,Double> result = null ;
 		switch (algo) {

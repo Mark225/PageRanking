@@ -5,6 +5,8 @@ import java.util.Map;
 
 import org.jgrapht.DirectedGraph;
 
+import pg.main.Progress;
+
 /**
  * Applies the HITS algoritm.
  * HITS (Hyperlink-Induced Topic Search) allows to classify the nodes of a graph 
@@ -14,13 +16,15 @@ import org.jgrapht.DirectedGraph;
  */
 public class Hits {
 	
+	public static Progress progress = new Progress() ;
+	
 	/**
 	 * Precision of the algorithm. We stop when two consecutive scores have 
 	 * a norme 1 distance below EPSILON
 	 */
 	private static double EPSILON = 1e-5 ; 
 
-	public static <V,E> Map<V,Double> apply(DirectedGraph<V, E> g){
+	public static <V extends Node,E> Map<V,Double> apply(DirectedGraph<V, E> g){
 		double distance = 2. ;
 		Map<V,Double> hubScore = new HashMap<>() ;
 		Map<V,Double> authScore = new HashMap<>() ;
@@ -73,6 +77,9 @@ public class Hits {
 		for(Map.Entry<V, Double> entry : authScore.entrySet())
 		{
 			result.put(entry.getKey(), Math.max(entry.getValue(), hubScore.get(entry.getKey()))) ;
+			entry.getKey().description += "\nAuthority : " + entry.getValue() ;
+			
+			entry.getKey().description += "\nHub : " + hubScore.get(entry.getKey()) ;
 		}
 		
 		

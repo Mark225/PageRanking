@@ -26,7 +26,7 @@ import pg.main.Progress;
 public class FileImporter {
 	
 	
-	private static Path basePath ;
+	public static Path basePath ;
 	static {
 		URL url = FileImporter.class.getProtectionDomain()
 		        .getCodeSource().getLocation() ;

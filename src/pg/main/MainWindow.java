@@ -4,18 +4,20 @@ import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Vector;
 import java.util.Map.Entry;
+import java.util.Vector;
 
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -30,9 +32,13 @@ import org.jgrapht.DirectedGraph;
 
 import pg.algo.Algorithm;
 import pg.algo.Edge;
+import pg.algo.Hits;
 import pg.algo.Node;
+import pg.algo.Salsa;
+import pg.graphimport.CiteSeerImporter;
 import pg.graphimport.GraphImport;
-import pg.graphimport.GraphImport.Mode;
+import pg.graphimport.LibraImporter;
+import pg.graphimport.WikipediaImporter;
 
 public class MainWindow extends JFrame implements ActionListener{
 	private static final long serialVersionUID = 1L;
@@ -52,6 +58,8 @@ public class MainWindow extends JFrame implements ActionListener{
 	//---citeseer import
 	private JLabel searchLabel = new JLabel("Search") ;
 	private JTextField searchField = new JTextField();
+	private JLabel numResLabel = new JLabel("Num of results to use") ;
+	private JTextField numResField = new JTextField("10") ;
 	private JPanel searchPan = new JPanel() ;
 	//---
 	
@@ -79,6 +87,11 @@ public class MainWindow extends JFrame implements ActionListener{
 	private JPanel resultsPan = new JPanel() ;
 	private JTextArea resultsField = new JTextArea(20,70) ;
 	private JScrollPane resultsScroll = new JScrollPane(resultsField) ;
+	//---
+	
+	//---onlyArticlePan
+	private JPanel onlyArticlePan = new JPanel() ;
+	private JCheckBox onlyArticleBox = new JCheckBox("only article") ;
 	//---
 	
 	private boolean isSearching = false ;
@@ -110,6 +123,10 @@ public class MainWindow extends JFrame implements ActionListener{
 		searchPan.add(searchLabel) ;
 		searchPan.add(Box.createRigidArea(new Dimension(10, 0))) ;
 		searchPan.add(searchField) ;
+		searchPan.add(numResLabel) ;
+		numResField.setPreferredSize(new Dimension(50, 20)) ;
+		numResField.setMaximumSize(new Dimension(1000, 20)) ;
+		searchPan.add(numResField) ;
 		searchPan.add(Box.createHorizontalGlue()) ;
 		getContentPane().add(searchPan) ;
 		//---
@@ -162,11 +179,20 @@ public class MainWindow extends JFrame implements ActionListener{
 		getContentPane().add(resultsPan) ;
 		//---
 		
+		//---onlyArticlePan
+		onlyArticlePan.setLayout(new BoxLayout(onlyArticlePan, BoxLayout.X_AXIS)) ;
+		onlyArticlePan.add(onlyArticleBox) ;
+		onlyArticlePan.add(Box.createHorizontalGlue()) ;
+		//---
+		
 		getContentPane().add(progress.progressPanel()) ;
 		
 		getContentPane().add(Box.createVerticalGlue()) ;
 		
 		setVisible(true) ;
+		
+		Salsa.progress = progress ;
+		Hits.progress = progress ;
 		
 	}
 
@@ -197,11 +223,17 @@ public class MainWindow extends JFrame implements ActionListener{
 			GraphImport.Mode mode = modeBox.getItemAt(modeBox.getSelectedIndex()) ;
 			
 			switch (mode) {
+			case WIKIPEDIA_FR:
+				getContentPane().add(onlyArticlePan) ;
 			case CITESEERX:
+			case LIBRA:
 				getContentPane().add(searchPan) ;
 				break;
 				
 			case FROM_FILE:
+				fileBox.removeAllItems() ;
+				for(String s : graphImport.availableFiles())
+					fileBox.addItem(s) ;
 				getContentPane().add(fileSelectPan) ;
 				break ;
 			}
@@ -217,28 +249,40 @@ public class MainWindow extends JFrame implements ActionListener{
 		if(event.getSource() == searchButton && !isSearching)
 		{
 			Algorithm.Type type = algoBox.getItemAt(algoBox.getSelectedIndex()) ;
-			switch (modeBox.getItemAt(modeBox.getSelectedIndex())) {
+			GraphImport.Mode mode = modeBox.getItemAt(modeBox.getSelectedIndex()) ; 
+			switch (mode) {
 			case CITESEERX:
+			case LIBRA:
+				String numRes = numResField.getText() ; 
+				try 
+				{
+					CiteSeerImporter.BASIC_NUM = Integer.parseInt(numRes) ;
+					LibraImporter.BASIC_NUM = Integer.parseInt(numRes) ;
+					
+				} catch (NumberFormatException e) {
+					progress.info("Provide a number in the field " + numResLabel.getText()) ;
+					return ;					
+				}
 				String search = searchField.getText() ;
 				if(search.equals(""))
 				{
 					progress.info("Please enter research keywords") ;
 					return ; 
 				}
-				//Replace ' ' by '+'
-				StringBuilder builder = new StringBuilder(search) ;
-				int i = builder.lastIndexOf(" ") ;
-				while(i != -1)
-				{
-					builder.setCharAt(i, '+') ;
-					i = builder.lastIndexOf(" ") ;
-				}
-				run(Mode.CITESEERX, type, builder.toString()) ;
+				
+				search = search.replace(' ', '+') ;
+				run(mode, type, search) ;
 				break;
 
 			case FROM_FILE:
-				run(Mode.FROM_FILE, type, fileBox.getItemAt(fileBox.getSelectedIndex())) ;
+				run(mode, type, fileBox.getItemAt(fileBox.getSelectedIndex())) ;
 				break;
+			case WIKIPEDIA_FR:
+				String numRes2 = numResField.getText() ;
+				WikipediaImporter.BASIC_NUM = Integer.parseInt(numRes2) ;
+				WikipediaImporter.ONLY_ARTICLE = onlyArticleBox.isSelected() ;
+				run(mode, type, searchField.getText()) ;
+				break ;
 			}
 		}
 		if(event.getSource() == cancelButllon && isSearching)
@@ -265,8 +309,7 @@ public class MainWindow extends JFrame implements ActionListener{
 			@Override
 			public void run() {
 				try {
-					DirectedGraph<Node, Edge> g = 
-							graphImport.importFrom(mode,search) ;
+					DirectedGraph<Node, Edge> g = graphImport.importFrom(mode,search) ;
 					Map<Node, Double> result = Algorithm.apply(type,g) ;
 					List<Map.Entry<Node,Double>> res_list = new LinkedList<>(result.entrySet()) ;
 					Collections.sort(res_list, new ResultComparator()) ;
@@ -285,6 +328,12 @@ public class MainWindow extends JFrame implements ActionListener{
 					e.printStackTrace();
 				} catch (ClassNotFoundException e) {
 					e.printStackTrace();
+				} catch (InterruptedException e) {
+					e.printStackTrace() ;
+				} catch (SQLException e) {
+					e.printStackTrace();
+				} finally {
+					isSearching = false ;
 				}
 			}
 		}) ;

@@ -32,4 +32,9 @@ public class Node implements Serializable{
 	public int hashCode(){
 		return name.hashCode() ;
 	}
+	
+	@Override
+	public String toString(){
+		return name ;
+	}
 }

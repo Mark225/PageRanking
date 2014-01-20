@@ -1,6 +1,7 @@
 package pg.main;
 
 import java.io.IOException;
+import java.sql.SQLException;
 
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.TransformerException;
@@ -17,25 +18,12 @@ public class Main {
 	 * @throws SAXException 
 	 * @throws ParserConfigurationException 
 	 * @throws IOException 
+	 * @throws SQLException 
 	 */
-	public static void main(String[] args) throws  ParserConfigurationException, SAXException, TransformerException, IOException {
+	public static void main(String[] args) throws  ParserConfigurationException, SAXException, TransformerException, IOException, SQLException {
 		
-		//Test.test() ;
+		//new XmlDataHandler().run() ;
 		
-		/*MainWindow win = */new MainWindow() ;
-		
-		 	/*	
-		DirectedGraph<Node, Edge> graph = GraphImport.importFrom(GraphImport.Mode.CITESEERX, "k-server") ; 
-		
-		Map<Node, Double> result = Salsa.apply(graph) ;
-		printResult(result) ; */
+		new MainWindow() ;
 	}
-/*
-	private static void printResult(Map<Node, Double> result) {
-		for(Map.Entry<Node, Double> val : result.entrySet())
-		{
-			System.out.println(val.getKey().getName() + " : " + val.getValue()) ;
-		}
-	}
-*/
 }

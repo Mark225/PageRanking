@@ -26,12 +26,15 @@ import pg.main.Progress;
  */
 public class CiteSeerImporter {
 	
-	private static final int TIMEOUT = 5000;
+	/**
+	 * timeout for read operations.
+	 */
+	private static final int TIMEOUT = 10000;
 
 	/**
 	 * Maximum number of results to use from the research on CiteSteer.
 	 */
-	static int BASIC_NUM = 10 ;
+	public static int BASIC_NUM = 30 ;
 	private Progress progress;
 	
 	public CiteSeerImporter(Progress progress){
@@ -46,7 +49,7 @@ public class CiteSeerImporter {
 		List<String> urls = new LinkedList<String>() ;
 		for(int i = 0 ; i < BASIC_NUM/10 ; i ++)
 		{
-			urls.add("http://citeseerx.ist.psu.edu/search?q=" + keyword + "&start=" + 10*i) ;
+			urls.add("http://citeseerx.ist.psu.edu/search?q=" + keyword + "&sort=rlv&start=" + 10*i) ;
 		}
 		int i = 1 ;
 		
